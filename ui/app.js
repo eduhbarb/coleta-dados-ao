@@ -137,16 +137,23 @@ const clearLog = () => {
 };
 
 const refreshTopUi = () => {
+  if (els.openFbModalBtn) {
+    els.openFbModalBtn.hidden = state.firebaseConfigured;
+  }
+
   if (els.fbPill) {
     if (!state.firebaseConfigured) {
       els.fbPill.className = "status-pill is-idle";
       els.fbPill.textContent = "Firebase não configurado";
     } else if (!state.authUser) {
       els.fbPill.className = "status-pill is-running";
-      els.fbPill.textContent = `Firebase (${state.firebaseConfig.projectId}) · sem login`;
+      els.fbPill.textContent = "Firebase · faça login com Google";
+    } else if (!state.authUser.authorized) {
+      els.fbPill.className = "status-pill is-error";
+      els.fbPill.textContent = "Sem permissão na Gestão";
     } else {
       els.fbPill.className = "status-pill is-done";
-      els.fbPill.textContent = `Firebase (${state.firebaseConfig.projectId}) · conectado`;
+      els.fbPill.textContent = `Autorizado · ${state.authUser.email}`;
     }
   }
 
@@ -166,7 +173,12 @@ const refreshTopUi = () => {
   if (els.exportJsonBtn) els.exportJsonBtn.disabled = !hasData || state.isRunning;
   if (els.exportCsvBtn) els.exportCsvBtn.disabled = !hasData || state.isRunning;
   if (els.uploadFirebaseBtn) {
-    els.uploadFirebaseBtn.disabled = !hasData || state.isRunning || !state.firebaseConfigured || !state.authUser;
+    els.uploadFirebaseBtn.disabled =
+      !hasData ||
+      state.isRunning ||
+      !state.firebaseConfigured ||
+      !state.authUser ||
+      !state.authUser.authorized;
   }
 };
 
@@ -403,7 +415,15 @@ const startGoogleAuth = async () => {
       window.clearInterval(state.authPollTimer);
       state.authPollTimer = null;
       if (state.authUser) {
-        showAlert(els.globalAlert, `Conectado como ${state.authUser.email}.`, "success");
+        if (state.authUser.authorized) {
+          showAlert(els.globalAlert, `Conectado e autorizado como ${state.authUser.email}.`, "success");
+        } else {
+          showAlert(
+            els.globalAlert,
+            state.authUser.authReason ||
+              `A conta ${state.authUser.email} não possui permissão 'Coletor Desktop (.exe)' na Gestão.`
+          );
+        }
       }
     }
   }, 1000);
@@ -526,6 +546,31 @@ const startScrape = async () => {
             authConfirmed = true;
             closeScrapeModal(true);
             setStatusBadge("running", `Coletando ${data.period || ""}`);
+            applyLoadedResult({
+              course: data.course || course,
+              period: data.period || "",
+              subjectFilter: data.subjectFilter || subjectFilter,
+              scrapedAt: "",
+              source: "aluno-online",
+              subjects: []
+            });
+          } else if (type === "subject") {
+            if (data.subject) {
+              if (!state.latestResult) {
+                state.latestResult = {
+                  course: data.course || course,
+                  period: data.period || "",
+                  subjectFilter: data.subjectFilter || subjectFilter,
+                  scrapedAt: "",
+                  source: "aluno-online",
+                  subjects: []
+                };
+              }
+              state.latestResult.subjects.push(data.subject);
+              updateStats();
+              populateGradeFilter();
+              renderTable();
+            }
           } else if (type === "progress") {
             updateProgress(data.done, data.total, `${data.done} / ${data.total} disciplinas consultadas`);
           } else if (type === "complete") {

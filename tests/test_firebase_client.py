@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+import firebase_client  # noqa: E402
 from firebase_client import (  # noqa: E402
     build_commit_payload,
+    check_user_permission,
     from_firestore_value,
     merge_subjects_by_filter,
     to_firestore_value,
@@ -76,6 +79,58 @@ class FirebaseClientTests(unittest.TestCase):
             writes[2]["updateTransforms"],
             [{"fieldPath": "finishedAt", "setToServerValue": "REQUEST_TIME"}],
         )
+
+    def test_check_user_permission_variants(self) -> None:
+        with patch.object(
+            firebase_client,
+            "_http_json",
+            return_value={
+                "fields": {
+                    "active": {"booleanValue": True},
+                    "permissions": {
+                        "mapValue": {
+                            "fields": {"coleta_app": {"booleanValue": True}}
+                        }
+                    },
+                }
+            },
+        ):
+            res = check_user_permission("proj", "tok", "user@example.com")
+            self.assertTrue(res["authorized"])
+
+        with patch.object(
+            firebase_client,
+            "_http_json",
+            return_value={
+                "fields": {
+                    "active": {"booleanValue": True},
+                    "permissions": {
+                        "mapValue": {
+                            "fields": {"coleta_app": {"booleanValue": False}}
+                        }
+                    },
+                }
+            },
+        ):
+            res = check_user_permission("proj", "tok", "user@example.com")
+            self.assertFalse(res["authorized"])
+
+        with patch.object(
+            firebase_client,
+            "_http_json",
+            return_value={
+                "fields": {
+                    "active": {"booleanValue": False},
+                    "permissions": {
+                        "mapValue": {
+                            "fields": {"adm_manage": {"booleanValue": True}}
+                        }
+                    },
+                }
+            },
+        ):
+            res = check_user_permission("proj", "tok", "user@example.com")
+            self.assertFalse(res["authorized"])
 
 
 if __name__ == "__main__":

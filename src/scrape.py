@@ -104,7 +104,7 @@ def run_scrape(
         )
 
     log("ok", f"Login validado com sucesso. Período letivo definido: {target_period}.")
-    emit("auth_ok", period=target_period, course=course_key)
+    emit("auth_ok", period=target_period, course=course_key, subjectFilter=filter_key)
 
     check_cancelled()
     emit("phase", phase="curriculum", message="Baixando Disciplinas do Currículo...")
@@ -185,6 +185,15 @@ def run_scrape(
 
         turmas_txt = f"{len(classes)} turma(s)" if classes else "sem turmas ofertadas"
         log("ok", f"[{idx}/{total}] {subj_id}: {turmas_txt}.")
+        emit(
+            "subject",
+            subject=enriched,
+            course=course_key,
+            period=target_period,
+            subjectFilter=filter_key,
+            done=idx,
+            total=total,
+        )
         emit("progress", done=idx, total=total, currentId=subj_id, currentName=subj_name)
 
         if idx < total and delay_seconds > 0:

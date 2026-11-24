@@ -190,6 +190,9 @@ class OrchestratorTests(unittest.TestCase):
             delay_seconds=0,
         )
         self.assertEqual(len(result["subjects"]), 2)
+        subject_events = [data for ev, data in events if ev == "subject"]
+        self.assertEqual(len(subject_events), 2)
+        self.assertEqual(subject_events[0]["subject"]["id"], "FCEE01-14886")
         serialized = str(events) + str(result)
         self.assertNotIn("20250000001", serialized)
         self.assertNotIn("SecretPassword!", serialized)

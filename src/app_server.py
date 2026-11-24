@@ -26,6 +26,7 @@ from config_store import (
 )
 from firebase_client import (
     FirebaseError,
+    check_user_permission,
     list_existing_periods,
     refresh_id_token,
     upload_catalog_period,
@@ -319,6 +320,8 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                         {
                             "email": app_state.auth_session["email"],
                             "displayName": app_state.auth_session.get("displayName", ""),
+                            "authorized": bool(app_state.auth_session.get("authorized", False)),
+                            "authReason": app_state.auth_session.get("authReason", ""),
                         }
                         if app_state.auth_session
                         else None
@@ -395,16 +398,22 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
 
                 with app_state.lock:
                     exp = app_state.pending_nonces.pop(nonce, 0.0)
+                    cfg = dict(app_state.firebase_config)
                     if exp <= time.monotonic() or not id_token or not email:
                         self._send_json(400, {"error": {"code": "INVALID_NONCE", "message": "Callback inválido."}})
                         return
+
+                perm_check = check_user_permission(cfg.get("projectId", ""), id_token, email)
+                with app_state.lock:
                     app_state.auth_session = {
                         "email": email,
                         "displayName": display_name,
                         "idToken": id_token,
                         "refreshToken": refresh_token,
+                        "authorized": bool(perm_check.get("authorized", False)),
+                        "authReason": str(perm_check.get("reason") or ""),
                     }
-                self._send_json(200, {"ok": True})
+                self._send_json(200, {"ok": True, "authorized": bool(perm_check.get("authorized", False))})
                 return
 
             if path == "/api/auth/logout":
@@ -480,6 +489,31 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                         app_state.latest_logs.append(str(data.get("message") or ""))
                         if len(app_state.latest_logs) > 200:
                             app_state.latest_logs = app_state.latest_logs[-200:]
+                elif ev == "auth_ok":
+                    with app_state.lock:
+                        app_state.latest_run_id = run_id
+                        app_state.latest_result = {
+                            "course": str(data.get("course") or course),
+                            "period": str(data.get("period") or ""),
+                            "subjectFilter": str(data.get("subjectFilter") or subject_filter),
+                            "scrapedAt": "",
+                            "source": "aluno-online",
+                            "subjects": [],
+                        }
+                elif ev == "subject":
+                    subj = data.get("subject")
+                    if isinstance(subj, dict):
+                        with app_state.lock:
+                            if not isinstance(app_state.latest_result, dict):
+                                app_state.latest_result = {
+                                    "course": str(data.get("course") or course),
+                                    "period": str(data.get("period") or ""),
+                                    "subjectFilter": str(data.get("subjectFilter") or subject_filter),
+                                    "scrapedAt": "",
+                                    "source": "aluno-online",
+                                    "subjects": [],
+                                }
+                            app_state.latest_result["subjects"].append(subj)
                 job.push_event(ev, data)
 
             def worker() -> None:
@@ -601,6 +635,18 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
             if not ctx:
                 return
             cfg, sess = ctx
+            if not sess.get("authorized"):
+                self._send_json(
+                    403,
+                    {
+                        "error": {
+                            "code": "FORBIDDEN",
+                            "message": sess.get("authReason")
+                            or "Sua conta não possui a permissão 'Coletor Desktop (.exe)' na Gestão.",
+                        }
+                    },
+                )
+                return
             body = self._read_json() or {}
             confirm_overwrite = bool(body.get("confirmOverwrite", False))
 

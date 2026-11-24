@@ -133,6 +133,48 @@ def refresh_id_token(api_key: str, refresh_token: str) -> dict[str, str]:
         raise FirebaseError("AUTH_EXPIRED", "Não foi possível renovar a sessão Google. Entre novamente.", 401) from err
 
 
+def check_user_permission(project_id: str, id_token: str, email: str) -> dict[str, Any]:
+    """Verifica em admins/{email} se o usuário está ativo e autorizado a usar o coletor."""
+    email_norm = email.strip().lower()
+    if not email_norm:
+        return {"authorized": False, "reason": "E-mail Google não identificado."}
+
+    base = f"https://firestore.googleapis.com/v1/projects/{urllib.parse.quote(project_id)}/databases/(default)/documents"
+    url = f"{base}/admins/{urllib.parse.quote(email_norm)}"
+    try:
+        raw = _http_json(url, headers={"Authorization": f"Bearer {id_token}"})
+    except FirebaseError as err:
+        if err.code in ("NOT_FOUND", "PERMISSION_DENIED"):
+            return {
+                "authorized": False,
+                "reason": "Esta conta não faz parte da equipe autorizada na Gestão ou está sem acesso ao módulo.",
+            }
+        return {"authorized": False, "reason": err.message}
+
+    fields = raw.get("fields") or {}
+    parsed = {k: from_firestore_value(v) for k, v in fields.items()}
+    if parsed.get("active") is not True:
+        return {"authorized": False, "reason": "Seu usuário está inativo na equipe do DAC."}
+
+    perms = parsed.get("permissions")
+    if isinstance(perms, dict):
+        allowed = bool(
+            perms.get("coleta_app") is True
+            or perms.get("adm_manage") is True
+            or perms.get("coleta_manage") is True
+        )
+    else:
+        allowed = parsed.get("role") == "admin"
+
+    if not allowed:
+        return {
+            "authorized": False,
+            "reason": "Seu cargo não possui a permissão 'Coletor Desktop (.exe)' na Gestão.",
+        }
+
+    return {"authorized": True, "reason": ""}
+
+
 def list_existing_periods(project_id: str, id_token: str, course: str) -> list[str]:
     """Lista os IDs de períodos já salvos em catalogs/{course}/periods."""
     base = f"https://firestore.googleapis.com/v1/projects/{urllib.parse.quote(project_id)}/databases/(default)/documents"

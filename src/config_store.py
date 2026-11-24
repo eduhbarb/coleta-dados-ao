@@ -54,11 +54,12 @@ def is_config_complete(cfg: dict[str, str]) -> bool:
 
 
 def load_firebase_config() -> dict[str, str]:
-    """Carrega configuração Firebase de arquivo local ou %APPDATA% (sem segredos)."""
+    """Carrega configuração Firebase de arquivo ao lado do app, %APPDATA% ou embutido no build."""
     local_candidates = [
         get_app_base_dir() / "config.json",
         get_app_base_dir() / "firebase-config.json",
         get_user_config_path(),
+        get_resource_dir() / "config.json",
     ]
     for path in local_candidates:
         if not path.is_file():
