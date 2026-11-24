@@ -33,10 +33,6 @@ $PyInstallerArgs = @(
     "--add-data", "assets/app.ico;assets",
     "--paths", "src"
 )
-if (Test-Path "config.json") {
-    Write-Host "Embutindo config.json local no executável (ignorado pelo Git)..."
-    $PyInstallerArgs += @("--add-data", "config.json;.")
-}
 $PyInstallerArgs += "src/main.py"
 & $PyInstaller @PyInstallerArgs
 if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar o executável." }

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
+import json
 import sys
 import unittest
+import urllib.error
 from unittest.mock import patch
 from pathlib import Path
 
@@ -11,6 +14,7 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+import config_store  # noqa: E402
 import firebase_client  # noqa: E402
 from firebase_client import (  # noqa: E402
     build_commit_payload,
@@ -131,6 +135,38 @@ class FirebaseClientTests(unittest.TestCase):
         ):
             res = check_user_permission("proj", "tok", "user@example.com")
             self.assertFalse(res["authorized"])
+
+    def test_fetch_remote_firebase_config_and_fallback(self) -> None:
+        fake_payload = json.dumps(
+            {
+                "projectId": "proj-remoto",
+                "apiKey": "fake-web-key",
+                "authDomain": "proj-remoto.firebaseapp.com",
+            }
+        ).encode("utf-8")
+
+        class _FakeResp(io.BytesIO):
+            def __enter__(self) -> "_FakeResp":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                self.close()
+
+        with patch.object(config_store, "load_firebase_config", return_value={"projectId": "", "apiKey": "", "authDomain": ""}):
+            with patch.object(config_store.urllib.request, "urlopen", return_value=_FakeResp(fake_payload)):
+                cfg, source = config_store.resolve_firebase_config(allow_remote=True)
+                self.assertEqual(source, "remote")
+                self.assertEqual(cfg["projectId"], "proj-remoto")
+                self.assertEqual(cfg["apiKey"], "fake-web-key")
+
+            with patch.object(
+                config_store.urllib.request,
+                "urlopen",
+                side_effect=urllib.error.URLError("offline"),
+            ):
+                cfg_err, source_err = config_store.resolve_firebase_config(allow_remote=True)
+                self.assertEqual(source_err, "none")
+                self.assertEqual(cfg_err, {"projectId": "", "apiKey": "", "authDomain": ""})
 
 
 if __name__ == "__main__":

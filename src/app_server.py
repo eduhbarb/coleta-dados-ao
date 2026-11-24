@@ -22,6 +22,7 @@ from config_store import (
     get_resource_dir,
     is_config_complete,
     load_firebase_config,
+    resolve_firebase_config,
     save_firebase_config,
 )
 from firebase_client import (
@@ -89,6 +90,9 @@ class AppState:
         self.lock = threading.Lock()
         self.port: int = 0
         self.firebase_config: dict[str, str] = load_firebase_config()
+        self.firebase_config_source: str = (
+            "local" if is_config_complete(self.firebase_config) else "none"
+        )
         self.auth_session: dict[str, str] | None = None
         self.pending_nonces: dict[str, float] = {}
         self.jobs: dict[str, ScrapeJob] = {}
@@ -96,6 +100,19 @@ class AppState:
         self.latest_run_id: str = ""
         self.latest_logs: list[str] = []
         self.file_dialog_fn: Callable[[str, str, str], str | None] | None = None
+        if self.firebase_config_source == "none":
+            threading.Thread(target=self.ensure_firebase_config, daemon=True).start()
+
+    def ensure_firebase_config(self) -> dict[str, str]:
+        with self.lock:
+            if is_config_complete(self.firebase_config):
+                return dict(self.firebase_config)
+        cfg, source = resolve_firebase_config(allow_remote=True)
+        with self.lock:
+            if is_config_complete(cfg) and not is_config_complete(self.firebase_config):
+                self.firebase_config = cfg
+                self.firebase_config_source = source
+            return dict(self.firebase_config)
 
 
 def _default_file_dialog(mode: str, default_name: str, file_ext: str) -> str | None:
@@ -317,6 +334,7 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
             if path == "/api/state":
                 with app_state.lock:
                     cfg = dict(app_state.firebase_config)
+                    source = app_state.firebase_config_source
                     auth_user = (
                         {
                             "email": app_state.auth_session["email"],
@@ -332,7 +350,12 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                     200,
                     {
                         "firebaseConfigured": is_config_complete(cfg),
-                        "firebaseConfig": cfg,
+                        "firebaseConfigSource": source,
+                        "firebaseConfig": (
+                            {"projectId": "", "apiKey": "", "authDomain": ""}
+                            if source == "remote"
+                            else cfg
+                        ),
                         "authUser": auth_user,
                         "latestResult": latest,
                     },
@@ -367,19 +390,25 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                     cfg = save_firebase_config(body)
                     with app_state.lock:
                         app_state.firebase_config = cfg
+                        app_state.firebase_config_source = "local"
                     self._send_json(200, {"ok": True, "firebaseConfig": cfg})
                 except ValueError as err:
                     self._send_json(400, {"error": {"code": "INVALID_CONFIG", "message": str(err)}})
                 return
 
             if path == "/api/auth/start":
+                cfg = app_state.ensure_firebase_config()
                 with app_state.lock:
-                    cfg = dict(app_state.firebase_config)
                     port = app_state.port
                 if not is_config_complete(cfg):
                     self._send_json(
                         400,
-                        {"error": {"code": "NO_FIREBASE", "message": "Configure o Firebase antes de entrar com Google."}},
+                        {
+                            "error": {
+                                "code": "NO_FIREBASE",
+                                "message": "Não foi possível conectar ao Firebase para iniciar o login Google. Verifique sua internet ou configure manualmente.",
+                            }
+                        },
                     )
                     return
                 nonce = secrets.token_urlsafe(16)

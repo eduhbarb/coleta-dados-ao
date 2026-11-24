@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Any
 
 CONFIG_FIELDS = ("projectId", "apiKey", "authDomain")
+DEFAULT_HOSTING_ORIGIN = "https://dac-uerjzo.web.app"
 
 
 def get_app_base_dir() -> Path:
@@ -54,12 +56,11 @@ def is_config_complete(cfg: dict[str, str]) -> bool:
 
 
 def load_firebase_config() -> dict[str, str]:
-    """Carrega configuração Firebase de arquivo ao lado do app, %APPDATA% ou embutido no build."""
+    """Carrega configuração Firebase de arquivo ao lado do app ou em %APPDATA%."""
     local_candidates = [
         get_app_base_dir() / "config.json",
         get_app_base_dir() / "firebase-config.json",
         get_user_config_path(),
-        get_resource_dir() / "config.json",
     ]
     for path in local_candidates:
         if not path.is_file():
@@ -72,6 +73,40 @@ def load_firebase_config() -> dict[str, str]:
         except Exception:
             continue
     return {"projectId": "", "apiKey": "", "authDomain": ""}
+
+
+def fetch_remote_firebase_config(
+    origin: str = DEFAULT_HOSTING_ORIGIN,
+    timeout: float = 8.0,
+) -> dict[str, str]:
+    """Obtém a configuração pública do Web App em runtime via Firebase Hosting."""
+    url = f"{origin.rstrip('/')}/__/firebase/init.json"
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "User-Agent": "coleta-dados-ao/1.0"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return _normalize_config(data)
+
+
+def resolve_firebase_config(
+    allow_remote: bool = True,
+    origin: str = DEFAULT_HOSTING_ORIGIN,
+) -> tuple[dict[str, str], str]:
+    """Resolve configuração local ou remota sem persistir config pública remota em disco."""
+    cfg = load_firebase_config()
+    if is_config_complete(cfg):
+        return cfg, "local"
+    if allow_remote:
+        try:
+            remote_cfg = fetch_remote_firebase_config(origin=origin)
+            if is_config_complete(remote_cfg):
+                return remote_cfg, "remote"
+        except Exception:
+            pass
+    return {"projectId": "", "apiKey": "", "authDomain": ""}, "none"
 
 
 def save_firebase_config(raw: dict[str, Any]) -> dict[str, str]:
