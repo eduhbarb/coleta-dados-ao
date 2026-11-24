@@ -1,9 +1,10 @@
 # coleta-dados-ao
 
-Aplicativo desktop leve e autocontido em Python para coleta de disciplinas, turmas, docentes, locais e horários do **Aluno Online da UERJ**, com exportação local em **JSON / CSV** e envio autenticado para o **Firebase Firestore**.
+Aplicativo desktop leve e autocontido em Python criado para alimentar os dados acadêmicos usados no **site do DAC**, contornando uma limitação de infraestrutura. Realiza a coleta de disciplinas, turmas, docentes, locais e horários do **Aluno Online da UERJ**, com exportação local em **JSON / CSV** e envio autenticado para o **Firebase Firestore**.
 
 ## Recursos
 
+- **Acesso controlado por login Google** — exige autenticação com conta Google autorizada na Gestão do DAC (permissão `coleta_app`) antes de liberar o painel.
 - **Interface desktop leve (`pywebview` + WebView2 do Windows)** — sem navegador pesado embutido.
 - **Autenticação direta no Aluno Online em memória** — matrícula e senha nunca são salvas em disco, logs ou banco de dados.
 - **Escopo configurável** — colete todas as disciplinas do currículo, apenas **Obrigatórias** ou apenas **Definidas** (com mesclagem automática ao atualizar um período existente no Firestore).
