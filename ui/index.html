@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coleta de Dados — Aluno Online UERJ</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-head">
+    <div class="container head-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">AO</span>
+        <span class="brand-text">
+          <strong>Coleta de Dados</strong>
+          <span>Aluno Online · UERJ</span>
+        </span>
+      </div>
+
+      <div class="head-actions">
+        <button class="btn-secondary btn-sm" type="button" data-open-fb-modal>Configurar Firebase</button>
+
+        <div class="user-pill" data-auth-user-pill hidden>
+          <span class="user-email" data-auth-email></span>
+          <button class="btn-danger btn-sm" type="button" data-auth-logout>Sair</button>
+        </div>
+
+        <button class="btn-red btn-sm" type="button" data-auth-login>Entrar com Google</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container app-main">
+    <div class="top-banner">
+      <div>
+        <p class="kicker"><span class="kicker-mark"></span>Extrator Autocontido · Windows</p>
+        <h1>Coleta de <span class="text-red">Dados</span></h1>
+        <p class="lead">Extraia disciplinas, turmas, docentes e horários de <strong>TADS</strong> ou <strong>Ciência da Computação</strong>, salve em JSON/CSV localmente ou envie para o Firebase Firestore.</p>
+      </div>
+      <div class="fb-status-wrap">
+        <span class="status-pill is-idle" data-fb-pill>Firebase não configurado</span>
+      </div>
+    </div>
+
+    <div class="alert" role="status" aria-live="polite" data-global-alert hidden></div>
+
+    <!-- Topo: 2 containers lado a lado -->
+    <div class="top-grid">
+      <!-- Container Esquerdo: Controle -->
+      <section class="card control-card">
+        <p class="kicker"><span class="kicker-mark"></span>1 · Curso e extração</p>
+        <h2 class="card-title">Iniciar raspagem</h2>
+        <p class="card-copy">Selecione o curso da matrícula. Dados pessoais e histórico cursado nunca são armazenados.</p>
+
+        <div class="course-group" role="group" aria-label="Curso para coleta">
+          <button class="course-btn is-active" type="button" data-course-btn="tads" aria-pressed="true">
+            <strong>TADS</strong>
+            <span>Tecnologia em Análise e Dev. de Sistemas</span>
+          </button>
+          <button class="course-btn" type="button" data-course-btn="cc" aria-pressed="false">
+            <strong>CC</strong>
+            <span>Ciência da Computação</span>
+          </button>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-box">
+            <span>Período</span>
+            <strong data-stat-period>—</strong>
+          </div>
+          <div class="stat-box">
+            <span>Disciplinas</span>
+            <strong data-stat-subjects>0</strong>
+          </div>
+          <div class="stat-box">
+            <span>Turmas</span>
+            <strong data-stat-classes>0</strong>
+          </div>
+          <div class="stat-box">
+            <span>Coletado em</span>
+            <strong data-stat-updated>—</strong>
+          </div>
+        </div>
+
+        <button class="btn-red btn-full" type="button" data-open-scrape-modal>
+          Iniciar coleta (Login Aluno Online)
+        </button>
+
+        <div class="action-grid">
+          <button class="btn-secondary" type="button" data-import-json>Abrir JSON local</button>
+          <button class="btn-secondary" type="button" data-export-json disabled>Exportar JSON</button>
+          <button class="btn-secondary btn-upload" type="button" data-upload-firebase disabled>Subir para o Firebase</button>
+        </div>
+
+        <p class="privacy-note">
+          Privacidade: matrícula e senha permanecem apenas em memória durante a consulta e são descartadas ao encerrar.
+        </p>
+      </section>
+
+      <!-- Container Direito: Log em tempo real -->
+      <section class="card log-card">
+        <div class="log-head">
+          <div>
+            <p class="kicker"><span class="kicker-mark"></span>2 · Execução ao vivo</p>
+            <h2 class="card-title">Log em tempo real</h2>
+          </div>
+          <div class="log-actions">
+            <span class="status-pill is-idle" data-status-badge>Pronto</span>
+            <button class="btn-danger btn-sm" type="button" data-cancel-scrape hidden>Cancelar</button>
+            <button class="btn-secondary btn-sm" type="button" data-clear-log>Limpar</button>
+          </div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-meta">
+            <span data-progress-text>Aguardando início da coleta ou abertura de JSON.</span>
+            <strong data-progress-pct>0%</strong>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" data-progress-fill></div>
+          </div>
+        </div>
+
+        <div class="terminal" role="log" aria-live="polite" data-log-list>
+          <div class="log-line is-muted">Selecione o curso ao lado e clique em "Iniciar coleta", ou carregue um JSON local.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Container Inferior: Tabela de preview -->
+    <section class="card results-card">
+      <div class="results-head">
+        <div>
+          <p class="kicker"><span class="kicker-mark"></span>3 · Pré-visualização</p>
+          <h2 class="card-title">Resultados extraídos</h2>
+        </div>
+        <div class="results-actions">
+          <button class="btn-secondary" type="button" data-export-csv disabled>Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="filters-grid">
+        <div class="field field-search">
+          <label class="label" for="filter-search">Buscar</label>
+          <input class="input" id="filter-search" type="search" placeholder="Código, disciplina, docente, local ou horário..." data-filter-search>
+        </div>
+        <div class="field">
+          <label class="label" for="filter-grade">Período da grade</label>
+          <select class="select" id="filter-grade" data-filter-grade>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="filter-type">Tipo</label>
+          <select class="select" id="filter-type" data-filter-type>
+            <option value="todos">Todos os tipos</option>
+            <option value="MANDATORY">Obrigatória</option>
+            <option value="DEFINED">Definida</option>
+            <option value="UNIVERSAL">Universal</option>
+            <option value="RESTRICTED">Restrita</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="filter-ofperiod">Do período</label>
+          <select class="select" id="filter-ofperiod" data-filter-ofperiod>
+            <option value="todos">Todos</option>
+            <option value="sim">Sim</option>
+            <option value="nao">Não</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <p class="table-meta" data-table-meta>Nenhum dado carregado ainda.</p>
+        <label class="check-inline">
+          <input type="checkbox" data-filter-only-classes>
+          <span>Mostrar apenas disciplinas com turmas</span>
+        </label>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Curso</th>
+              <th>Código</th>
+              <th>Disciplina</th>
+              <th>Período</th>
+              <th>Tipo</th>
+              <th>Créditos</th>
+              <th>Carga</th>
+              <th>Turma</th>
+              <th>Docente</th>
+              <th>Local</th>
+              <th>Horário</th>
+              <th>Do período</th>
+              <th>Ramificação</th>
+            </tr>
+          </thead>
+          <tbody data-table-body>
+            <tr>
+              <td colspan="13" class="table-empty">Execute uma coleta ou abra um JSON local para visualizar os dados.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal 1: Login Aluno Online -->
+  <div class="modal-backdrop" data-scrape-modal hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scrape-modal-title">
+      <div class="modal-head">
+        <div>
+          <p class="kicker"><span class="kicker-mark"></span>Aluno Online · UERJ</p>
+          <h2 id="scrape-modal-title">Autenticar coleta</h2>
+        </div>
+        <button class="modal-close" type="button" aria-label="Fechar" data-scrape-modal-close>×</button>
+      </div>
+
+      <form class="modal-form" data-scrape-form>
+        <div class="field">
+          <label class="label" for="modal-course">Curso da conta</label>
+          <select class="select" id="modal-course" data-modal-course>
+            <option value="tads">TADS — Tecnologia em Análise e Desenvolvimento de Sistemas</option>
+            <option value="cc">CC — Ciência da Computação</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="label" for="modal-scope">Disciplinas a consultar</label>
+          <select class="select" id="modal-scope" data-modal-scope>
+            <option value="ALL">Todas as matérias</option>
+            <option value="MANDATORY">Apenas Obrigatórias</option>
+            <option value="DEFINED">Apenas Definidas</option>
+          </select>
+          <p class="hint">Ao atualizar apenas Obrigatórias ou Definidas no Firebase, os outros tipos já salvos são preservados.</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="modal-matricula">Matrícula</label>
+          <input class="input" id="modal-matricula" type="text" inputmode="numeric" required placeholder="Ex.: 20251234567" data-modal-matricula>
+        </div>
+
+        <div class="field">
+          <label class="label" for="modal-senha">Senha do Aluno Online</label>
+          <div class="pass-wrap">
+            <input class="input" id="modal-senha" type="password" required placeholder="Digite a senha" data-modal-senha>
+            <button class="btn-secondary btn-sm" type="button" data-toggle-pass>Mostrar</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="modal-period">Período manual (opcional — usado se o portal não informar)</label>
+          <input class="input" id="modal-period" type="text" maxlength="10" placeholder="Ex.: 2026.1" data-modal-period>
+        </div>
+
+        <div class="alert alert-error" role="alert" data-scrape-modal-alert hidden></div>
+
+        <div class="modal-actions">
+          <button class="btn-secondary" type="button" data-scrape-modal-cancel>Cancelar</button>
+          <button class="btn-red" type="submit" data-scrape-submit>Entrar e iniciar coleta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Configuração Firebase -->
+  <div class="modal-backdrop" data-fb-modal hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="fb-modal-title">
+      <div class="modal-head">
+        <div>
+          <p class="kicker"><span class="kicker-mark"></span>Destino na nuvem</p>
+          <h2 id="fb-modal-title">Configurar Firebase</h2>
+        </div>
+        <button class="modal-close" type="button" aria-label="Fechar" data-fb-modal-close>×</button>
+      </div>
+
+      <form class="modal-form" data-fb-form>
+        <p class="hint">Esses dados são públicos do Firebase Web App e ficam salvos apenas no seu perfil local do Windows.</p>
+
+        <div class="field">
+          <label class="label" for="fb-project-id">Project ID</label>
+          <input class="input" id="fb-project-id" type="text" required placeholder="ex.: meu-projeto-firebase" data-fb-project-id>
+        </div>
+
+        <div class="field">
+          <label class="label" for="fb-api-key">Web API Key</label>
+          <input class="input" id="fb-api-key" type="text" required placeholder="AIza..." data-fb-api-key>
+        </div>
+
+        <div class="field">
+          <label class="label" for="fb-auth-domain">Auth Domain</label>
+          <input class="input" id="fb-auth-domain" type="text" required placeholder="ex.: meu-projeto-firebase.firebaseapp.com" data-fb-auth-domain>
+        </div>
+
+        <div class="alert alert-error" role="alert" data-fb-modal-alert hidden></div>
+
+        <div class="modal-actions">
+          <button class="btn-secondary" type="button" data-fb-modal-cancel>Cancelar</button>
+          <button class="btn-red" type="submit" data-fb-save>Salvar configuração</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Confirmação de sobrescrita no Firebase -->
+  <div class="modal-backdrop" data-overwrite-modal hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="overwrite-modal-title">
+      <div class="modal-head">
+        <div>
+          <p class="kicker"><span class="kicker-mark"></span>Período existente</p>
+          <h2 id="overwrite-modal-title">Atualizar período?</h2>
+        </div>
+        <button class="modal-close" type="button" aria-label="Fechar" data-overwrite-close>×</button>
+      </div>
+      <div class="modal-form">
+        <p class="card-copy" data-overwrite-msg></p>
+        <div class="modal-actions">
+          <button class="btn-secondary" type="button" data-overwrite-cancel>Cancelar</button>
+          <button class="btn-red" type="button" data-overwrite-confirm>Confirmar envio</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

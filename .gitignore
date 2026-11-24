@@ -1,0 +1,11 @@
+.venv/
+venv/
+dist/
+build/
+*.spec
+__pycache__/
+*.py[cod]
+config.json
+firebase-config.json
+exports/
+.pytest_cache/
