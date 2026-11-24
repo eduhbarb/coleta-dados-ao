@@ -314,6 +314,22 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
+        def _require_authorized(self) -> bool:
+            with app_state.lock:
+                ok = bool(app_state.auth_session and app_state.auth_session.get("authorized"))
+            if not ok:
+                self._send_json(
+                    403,
+                    {
+                        "error": {
+                            "code": "UNAUTHORIZED",
+                            "message": "Faça login com uma conta Google autorizada para usar o aplicativo.",
+                        }
+                    },
+                )
+                return False
+            return True
+
         def _read_json(self) -> dict[str, Any] | None:
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -375,6 +391,8 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                 return
 
             if path.startswith("/api/scrape/stream/"):
+                if not self._require_authorized():
+                    return
                 run_id = path[len("/api/scrape/stream/") :].strip("/")
                 self._handle_stream(run_id)
                 return
@@ -453,10 +471,14 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                 return
 
             if path == "/api/scrape/start":
+                if not self._require_authorized():
+                    return
                 self._handle_scrape_start()
                 return
 
             if path.startswith("/api/scrape/cancel/"):
+                if not self._require_authorized():
+                    return
                 run_id = path[len("/api/scrape/cancel/") :].strip("/")
                 with app_state.lock:
                     job = app_state.jobs.get(run_id)
@@ -468,22 +490,32 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                 return
 
             if path == "/api/firebase/periods":
+                if not self._require_authorized():
+                    return
                 self._handle_firebase_periods()
                 return
 
             if path == "/api/firebase/upload":
+                if not self._require_authorized():
+                    return
                 self._handle_firebase_upload()
                 return
 
             if path == "/api/export/json":
+                if not self._require_authorized():
+                    return
                 self._handle_export_json()
                 return
 
             if path == "/api/export/csv":
+                if not self._require_authorized():
+                    return
                 self._handle_export_csv()
                 return
 
             if path == "/api/import/json":
+                if not self._require_authorized():
+                    return
                 self._handle_import_json()
                 return
 

@@ -18,20 +18,50 @@
         </span>
       </div>
 
-      <div class="head-actions">
-        <button class="btn-secondary btn-sm" type="button" data-open-fb-modal>Configurar Firebase</button>
-
+      <div class="head-actions" data-head-actions>
         <div class="user-pill" data-auth-user-pill hidden>
           <span class="user-email" data-auth-email></span>
           <button class="btn-danger btn-sm" type="button" data-auth-logout>Sair</button>
         </div>
-
-        <button class="btn-red btn-sm" type="button" data-auth-login>Entrar com Google</button>
       </div>
     </div>
   </header>
 
   <main class="container app-main">
+    <!-- Primeira tela: Gate de autenticação Google + permissão coleta_app -->
+    <section class="auth-gate" data-auth-gate>
+      <div class="auth-gate-card" data-gate-login>
+        <p class="kicker"><span class="kicker-mark"></span>Acesso restrito · DAC UERJ ZO</p>
+        <h1>Coleta de <span class="text-red">Dados</span></h1>
+        <div class="auth-gate-rule" aria-hidden="true"></div>
+        <p class="auth-gate-copy">Entre com sua conta Google autorizada na Gestão do DAC (permissão <strong>Coletor Desktop</strong>) para liberar o extrator do Aluno Online e o envio para o Firebase.</p>
+
+        <button class="btn-red btn-full google-btn" type="button" data-gate-login-btn>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10c5.35 0 9.25-3.67 9.25-9.09c0-1.15-.15-1.81-.15-1.81Z"/>
+          </svg>
+          <span>Entrar com Google</span>
+        </button>
+
+        <div class="alert" role="status" aria-live="polite" data-gate-alert hidden></div>
+
+        <button class="btn-secondary btn-sm auth-gate-config-btn" type="button" data-open-fb-modal hidden>Configurar Firebase manualmente</button>
+      </div>
+
+      <div class="auth-gate-card is-warn" data-gate-denied hidden>
+        <p class="kicker"><span class="kicker-mark"></span>Permissão negada</p>
+        <h1>Acesso não <span class="text-red">autorizado</span></h1>
+        <div class="auth-gate-rule" aria-hidden="true"></div>
+        <p class="auth-gate-copy">A conta <strong data-gate-denied-email></strong> não tem autorização para usar este aplicativo.</p>
+        <p class="auth-gate-reason" data-gate-denied-reason></p>
+        <div class="auth-gate-actions">
+          <button class="btn-red" type="button" data-gate-switch-btn>Trocar conta</button>
+          <button class="btn-secondary" type="button" data-gate-logout-btn>Sair</button>
+        </div>
+      </div>
+    </section>
+
+    <div data-app-workspace hidden>
     <div class="top-banner">
       <div>
         <p class="kicker"><span class="kicker-mark"></span>Extrator Autocontido · Windows</p>
@@ -206,6 +236,7 @@
         </table>
       </div>
     </section>
+    </div>
   </main>
 
   <!-- Modal 1: Login Aluno Online -->

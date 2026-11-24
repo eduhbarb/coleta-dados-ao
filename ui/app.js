@@ -8,10 +8,19 @@ const TYPE_LABELS = {
 const els = {
   fbPill: document.querySelector("[data-fb-pill]"),
   openFbModalBtn: document.querySelector("[data-open-fb-modal]"),
-  authLoginBtn: document.querySelector("[data-auth-login]"),
-  authLogoutBtn: document.querySelector("[data-auth-logout]"),
   authUserPill: document.querySelector("[data-auth-user-pill]"),
   authEmail: document.querySelector("[data-auth-email]"),
+  authLogoutBtn: document.querySelector("[data-auth-logout]"),
+  authGate: document.querySelector("[data-auth-gate]"),
+  gateLogin: document.querySelector("[data-gate-login]"),
+  gateDenied: document.querySelector("[data-gate-denied]"),
+  gateLoginBtn: document.querySelector("[data-gate-login-btn]"),
+  gateSwitchBtn: document.querySelector("[data-gate-switch-btn]"),
+  gateLogoutBtn: document.querySelector("[data-gate-logout-btn]"),
+  gateDeniedEmail: document.querySelector("[data-gate-denied-email]"),
+  gateDeniedReason: document.querySelector("[data-gate-denied-reason]"),
+  gateAlert: document.querySelector("[data-gate-alert]"),
+  appWorkspace: document.querySelector("[data-app-workspace]"),
   globalAlert: document.querySelector("[data-global-alert]"),
   courseBtns: Array.from(document.querySelectorAll("[data-course-btn]")),
   statPeriod: document.querySelector("[data-stat-period]"),
@@ -67,6 +76,7 @@ const els = {
 const state = {
   selectedCourse: "tads",
   firebaseConfigured: false,
+  firebaseConfigSource: "none",
   firebaseConfig: { projectId: "", apiKey: "", authDomain: "" },
   authUser: null,
   latestResult: null,
@@ -137,8 +147,31 @@ const clearLog = () => {
 };
 
 const refreshTopUi = () => {
-  if (els.openFbModalBtn) {
-    els.openFbModalBtn.hidden = state.firebaseConfigured;
+  const isUnlocked = Boolean(state.authUser && state.authUser.authorized);
+
+  if (els.appWorkspace) els.appWorkspace.hidden = !isUnlocked;
+  if (els.authGate) els.authGate.hidden = isUnlocked;
+
+  if (!isUnlocked) {
+    const isDenied = Boolean(state.authUser && !state.authUser.authorized);
+    if (els.gateLogin) els.gateLogin.hidden = isDenied;
+    if (els.gateDenied) els.gateDenied.hidden = !isDenied;
+    if (isDenied) {
+      if (els.gateDeniedEmail) els.gateDeniedEmail.textContent = state.authUser.email || "conta Google";
+      if (els.gateDeniedReason) {
+        els.gateDeniedReason.textContent =
+          state.authUser.authReason ||
+          "Seu usuário autenticado não está ativo ou não possui a permissão 'Coletor Desktop (.exe)' na Gestão.";
+      }
+    }
+    if (els.openFbModalBtn) {
+      els.openFbModalBtn.hidden = state.firebaseConfigured || state.firebaseConfigSource === "remote";
+    }
+    if (els.gateLoginBtn) {
+      els.gateLoginBtn.disabled = state.isAuthenticating;
+    }
+  } else if (els.openFbModalBtn) {
+    els.openFbModalBtn.hidden = true;
   }
 
   if (els.fbPill) {
@@ -157,15 +190,12 @@ const refreshTopUi = () => {
     }
   }
 
-  if (els.authUserPill && els.authLoginBtn && els.authEmail) {
-    if (state.authUser) {
+  if (els.authUserPill && els.authEmail) {
+    if (isUnlocked) {
       els.authEmail.textContent = state.authUser.email;
       els.authUserPill.hidden = false;
-      els.authLoginBtn.hidden = true;
     } else {
       els.authUserPill.hidden = true;
-      els.authLoginBtn.hidden = false;
-      els.authLoginBtn.disabled = !state.firebaseConfigured;
     }
   }
 
@@ -177,8 +207,7 @@ const refreshTopUi = () => {
       !hasData ||
       state.isRunning ||
       !state.firebaseConfigured ||
-      !state.authUser ||
-      !state.authUser.authorized;
+      !isUnlocked;
   }
 };
 
@@ -341,6 +370,7 @@ const syncStateFromServer = async () => {
   const resp = await fetch("/api/state");
   const data = await resp.json();
   state.firebaseConfigured = Boolean(data.firebaseConfigured);
+  state.firebaseConfigSource = data.firebaseConfigSource || "none";
   state.firebaseConfig = data.firebaseConfig || { projectId: "", apiKey: "", authDomain: "" };
   state.authUser = data.authUser || null;
   if (data.latestResult) applyLoadedResult(data.latestResult);
@@ -398,14 +428,21 @@ if (els.fbForm) {
 }
 
 const startGoogleAuth = async () => {
+  const targetAlert = state.authUser && state.authUser.authorized ? els.globalAlert : els.gateAlert;
+  showAlert(els.gateAlert, "");
   showAlert(els.globalAlert, "");
+  state.isAuthenticating = true;
+  refreshTopUi();
+
   const resp = await fetch("/api/auth/start", { method: "POST" });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    showAlert(els.globalAlert, (data.error && data.error.message) || "Não foi possível iniciar o login Google.");
+    state.isAuthenticating = false;
+    await syncStateFromServer();
+    showAlert(targetAlert, (data.error && data.error.message) || "Não foi possível iniciar o login Google.");
     return;
   }
-  showAlert(els.globalAlert, "Conclua o login com Google na aba do navegador que foi aberta...", "success");
+  showAlert(targetAlert, "Conclua o login com Google na aba do navegador que foi aberta...", "success");
   if (state.authPollTimer) window.clearInterval(state.authPollTimer);
   let attempts = 0;
   state.authPollTimer = window.setInterval(async () => {
@@ -414,19 +451,29 @@ const startGoogleAuth = async () => {
     if (state.authUser || attempts > 90) {
       window.clearInterval(state.authPollTimer);
       state.authPollTimer = null;
-      if (state.authUser) {
-        if (state.authUser.authorized) {
-          showAlert(els.globalAlert, `Conectado e autorizado como ${state.authUser.email}.`, "success");
-        } else {
-          showAlert(
-            els.globalAlert,
-            state.authUser.authReason ||
-              `A conta ${state.authUser.email} não possui permissão 'Coletor Desktop (.exe)' na Gestão.`
-          );
-        }
+      state.isAuthenticating = false;
+      refreshTopUi();
+      if (state.authUser && state.authUser.authorized) {
+        showAlert(els.gateAlert, "");
+        showAlert(els.globalAlert, `Conectado e autorizado como ${state.authUser.email}.`, "success");
+      } else if (!state.authUser) {
+        showAlert(els.gateAlert, "Tempo limite aguardando o login com Google. Tente novamente.");
       }
     }
   }, 1000);
+};
+
+const logoutGoogleAuth = async () => {
+  if (state.authPollTimer) {
+    window.clearInterval(state.authPollTimer);
+    state.authPollTimer = null;
+  }
+  state.isAuthenticating = false;
+  await fetch("/api/auth/logout", { method: "POST" });
+  state.authUser = null;
+  showAlert(els.gateAlert, "");
+  showAlert(els.globalAlert, "");
+  refreshTopUi();
 };
 
 /* ---------- Raspagem SSE ---------- */
@@ -655,14 +702,15 @@ els.courseBtns.forEach((btn) =>
 if (els.openFbModalBtn) els.openFbModalBtn.addEventListener("click", openFbModal);
 if (els.fbModalClose) els.fbModalClose.addEventListener("click", closeFbModal);
 if (els.fbModalCancel) els.fbModalCancel.addEventListener("click", closeFbModal);
-if (els.authLoginBtn) els.authLoginBtn.addEventListener("click", startGoogleAuth);
-if (els.authLogoutBtn) {
-  els.authLogoutBtn.addEventListener("click", async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    state.authUser = null;
-    refreshTopUi();
+if (els.gateLoginBtn) els.gateLoginBtn.addEventListener("click", startGoogleAuth);
+if (els.gateLogoutBtn) els.gateLogoutBtn.addEventListener("click", logoutGoogleAuth);
+if (els.gateSwitchBtn) {
+  els.gateSwitchBtn.addEventListener("click", async () => {
+    await logoutGoogleAuth();
+    await startGoogleAuth();
   });
 }
+if (els.authLogoutBtn) els.authLogoutBtn.addEventListener("click", logoutGoogleAuth);
 
 if (els.openScrapeModalBtn) els.openScrapeModalBtn.addEventListener("click", openScrapeModal);
 if (els.scrapeModalClose) els.scrapeModalClose.addEventListener("click", () => closeScrapeModal(false));

@@ -16,6 +16,9 @@ if str(SRC_DIR) not in sys.path:
 
 import config_store  # noqa: E402
 import firebase_client  # noqa: E402
+from app_server import AppState, make_handler  # noqa: E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+import threading  # noqa: E402
 from firebase_client import (  # noqa: E402
     build_commit_payload,
     check_user_permission,
@@ -167,6 +170,54 @@ class FirebaseClientTests(unittest.TestCase):
                 cfg_err, source_err = config_store.resolve_firebase_config(allow_remote=True)
                 self.assertEqual(source_err, "none")
                 self.assertEqual(cfg_err, {"projectId": "", "apiKey": "", "authDomain": ""})
+
+    def test_app_server_requires_authorized_session_for_protected_endpoints(self) -> None:
+        with patch.object(config_store, "load_firebase_config", return_value={"projectId": "", "apiKey": "", "authDomain": ""}):
+            app_state = AppState()
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app_state))
+        port = int(server.server_address[1])
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            for endpoint in ("/api/scrape/start", "/api/export/json", "/api/import/json", "/api/firebase/upload"):
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}{endpoint}",
+                    data=b"{}",
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(ctx.exception.code, 403)
+                ctx.exception.close()
+
+            with app_state.lock:
+                app_state.auth_session = {"email": "dev@example.com", "authorized": False}
+            req_denied = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/export/csv",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as ctx_denied:
+                urllib.request.urlopen(req_denied, timeout=5)
+            self.assertEqual(ctx_denied.exception.code, 403)
+            ctx_denied.exception.close()
+
+            with app_state.lock:
+                app_state.auth_session = {"email": "dev@example.com", "authorized": True}
+            req_ok = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/export/csv",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as ctx_ok:
+                urllib.request.urlopen(req_ok, timeout=5)
+            self.assertEqual(ctx_ok.exception.code, 400)
+            ctx_ok.exception.close()
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == "__main__":
