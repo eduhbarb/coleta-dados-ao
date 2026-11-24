@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from app_server import AppState, start_server
+from config_store import get_resource_dir
 
 
 def main() -> None:
@@ -68,7 +69,8 @@ def main() -> None:
             background_color="#0a0909",
         )
         window_holder.append(win)
-        webview.start()
+        icon_path = get_resource_dir() / "assets" / "app.ico"
+        webview.start(icon=str(icon_path) if icon_path.is_file() else None)
     except Exception:
         webbrowser.open(url)
         try:

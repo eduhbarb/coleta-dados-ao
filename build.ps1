@@ -13,7 +13,7 @@ $Pip = Join-Path $Root ".venv\Scripts\pip.exe"
 $PyInstaller = Join-Path $Root ".venv\Scripts\pyinstaller.exe"
 
 Write-Host "Instalando dependências..."
-& $Pip install --upgrade pip
+& $Py -m pip install --upgrade pip --quiet
 & $Pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependências." }
 
@@ -28,7 +28,9 @@ $PyInstallerArgs = @(
     "--onefile",
     "--windowed",
     "--name", "coleta-dados-ao",
+    "--icon", "assets/app.ico",
     "--add-data", "ui;ui",
+    "--add-data", "assets/app.ico;assets",
     "--paths", "src"
 )
 if (Test-Path "config.json") {

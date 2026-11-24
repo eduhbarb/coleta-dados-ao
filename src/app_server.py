@@ -195,6 +195,7 @@ def _render_auth_html(cfg: dict[str, str], nonce: str) -> str:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrar com Google — Coleta de Dados AO</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <style>
     body {{
       margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px;
